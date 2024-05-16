@@ -1,0 +1,283 @@
+class OthelloGame:
+
+    # representation of the othello game logic
+    def _init_(self):
+        self.board = [[' ' for _ in range(8)] for _ in range(8)]
+        self.board[3][3] = 'W'  # Initial white pieces
+        self.board[3][4] = 'B'  # Initial black pieces
+        self.board[4][3] = 'B'
+        self.board[4][4] = 'W'
+        self.black_disks = 30
+        self.white_disks = 30
+        self.opponent_player = 'W'  # Initialize opponent player
+
+    # print the board with valid moves
+    def display_board(self, available_moves=None):
+        if available_moves is None:
+            available_moves = []  # Set an empty list if available_moves is None
+        column_labels = "   a   b   c   d   e   f   g   h "
+        print(column_labels)
+        print("  ---------------------------------")
+        for i in range(8):
+            # Initialize row string with row number
+            row_str = f"{i} |"
+            # Iterate over columns
+            for j in range(8):
+                # search for valid moves
+                if (i, j) in available_moves:
+                    row_str += ' X |'  # Indicator for available move
+                else:
+                    row_str += f" {self.board[i][j]} |"
+            print(row_str)
+            print("  ---------------------------------")
+
+    @staticmethod
+    def get_user_move():
+        # loop until a valid move is entered
+        while True:
+            try:
+                row = int(input("Enter row number (0-7): "))
+                col = input("Enter column letter (a-h): ").strip().lower()
+                if 0 <= row <= 7 and col in 'abcdefgh':
+                    # Convert column letter to its corresponding index (0-7)
+                    col = ord(col) - ord('a')
+                    return row, col
+                else:
+                    print("Invalid input. Row must be between 0 and 7, and column must be between a and h.")
+            except ValueError:
+                print("Invalid input. Please enter integers for the row.")
+
+    def is_valid_move(self, row, col, player):
+        # Check if the cell is not empty
+        if self.board[row][col] != ' ':
+            return False  # Cell is not empty
+
+        # Determine opponent's player
+        opponent = 'W' if player == 'B' else 'B'
+        # directions move (vertical and horizontal directions)
+        #             right    left     down     up
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+        # iterates through each direction (horizontal and vertical)
+        # dr represents the change in the row index ~vertical direction
+        # dc represents the change in the column index ~horizontal direction
+        for dr, dc in directions:
+            # r = row + dr
+            # c = col + dc
+            r, c = row + dr, col + dc
+            # Check for opponent's pieces followed by the player's piece
+            if 0 <= r < 8 and 0 <= c < 8 and self.board[r][c] == opponent:
+                # Keep checking in the same way until you either come across a cell holding the current player's piece or the board's boundary.
+                while 0 <= r < 8 and 0 <= c < 8 and self.board[r][c] == opponent:
+                    r += dr
+                    c += dc
+                # If found, it's a valid move
+                if 0 <= r < 8 and 0 <= c < 8 and self.board[r][c] == player:
+                    return True
+        # No valid move found
+        return False
+
+    def apply_move(self, row, col, player):
+        # Check if the move is valid
+        if not self.is_valid_move(row, col, player):
+            return False
+
+        # Determine the opponent's player
+        opponent = 'W' if player == 'B' else 'B'
+        # put the player's piece on the board
+        self.board[row][col] = player
+        # directions to check (horizontal and vertical)
+        directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Only horizontal and vertical directions
+        for dr, dc in directions:
+            r, c = row + dr, col + dc
+            # accumulator for opponent's pieces to flip
+            disks_to_flip = []
+            # gather opponent's pieces to flip
+            while 0 <= r < 8 and 0 <= c < 8 and self.board[r][c] == opponent:
+                disks_to_flip.append((r, c))
+                r += dr
+                c += dc
+            # If the sequence ends with the player's piece, flip the collected opponent's pieces
+            if 0 <= r < 8 and 0 <= c < 8 and self.board[r][c] == player:
+                for disk_row, disk_col in disks_to_flip:
+                    self.board[disk_row][disk_col] = player
+        # Move successfully applied
+        return True
+
+    def is_game_over(self):
+        # Check if both players can make valid moves
+        return not (self.generate_moves('B') or self.generate_moves('W'))
+
+    # function to count the pieces for each player
+    def count_pieces(self):
+        black_count = sum(row.count('B') for row in self.board)
+        white_count = sum(row.count('W') for row in self.board)
+        return black_count, white_count
+
+    # utility function that evaluates current game state
+    # with respect to a given player.
+    def utility(self, player):
+        # Count the number of player's pieces on the board
+        player_score = sum(row.count(player) for row in self.board)
+        # Determine the opponent's player
+        opponent_player = 'W' if player == 'B' else 'B'
+        # Count the number of opponent's pieces on the board
+        opponent_score = sum(row.count(opponent_player) for row in self.board)
+        # Calculate and return the utility score for the player
+        return player_score - opponent_score
+
+    # function to generate moves
+    def generate_moves(self, player):
+        moves = []   # empty list to store valid moves
+        # Iterate through each cell on the board
+        for row in range(8):
+            for col in range(8):
+                # Check if the move is valid for the given player
+                if self.is_valid_move(row, col, player):
+                    # If valid then add the move to the list of moves
+                    moves.append((row, col))
+        return moves
+
+    # alpha-beta pruning algorithm is used to find the best move for the given player within a specified search depth.
+    def alpha_beta_pruning(self, player, depth):
+        # Define the alphabeta function using recursion
+        def alphabeta(pos, alpha, beta, depth, maximizing_player):
+            # Check if the search depth is reached or if the game is over
+            if depth == 0 or self.is_game_over():
+                return self.utility(player)   # Return the utility score for the player
+            # Explore possible moves and evaluate their scores
+            for next_pos in self.generate_moves(player if maximizing_player else self.opponent_player):
+                # Calculate the score for the current move
+                current = -alphabeta(next_pos, -beta, -alpha, depth - 1, not maximizing_player)
+                # Beta cut-off: If the current move's score is greater than or equal to beta,
+                # it means that the opponent has a better alternative, so we prune the search.
+                if current >= beta:
+                    return beta
+                # Update the alpha value if a better move is found
+                if current > alpha:
+                    alpha = current
+            return alpha
+
+        # variables to track the best move and its score
+        best_move = None
+        best_score = float('-inf')
+
+        # Iterate through the possible moves for the player
+        for move in self.generate_moves(player):
+            # Calculate the score for each move using alphabeta pruning
+            score = -alphabeta(move, float('-inf'), float('inf'), depth, False)
+            # Update the best move and score if a better move is found
+            if score > best_score:
+                best_score = score
+                best_move = move
+        return best_move   # Return the best move found
+
+
+class GameController:
+    # This method initializes the GameController class.
+    def _init_(self, difficulty, two_player_mode=False):
+        self.game = OthelloGame()  # Initialize the game instance
+        self.current_player = 'B'  # Black starts first
+        self.opponent_player = 'W' # the opponent player
+        self.difficulty = difficulty  # the games' difficulty level
+        self.two_player_mode = two_player_mode  # the two player's mode
+
+    # swaps the players
+    def switch_players(self):
+        self.current_player, self.opponent_player = self.opponent_player, self.current_player
+
+    # control the main flow of the game keeps looping until the game is over
+    def play(self):
+        while True:
+            # Initialize variable to track valid moves for each player
+            no_valid_moves = {player: False for player in ['B', 'W']}
+            # Iterate through both players
+            for player in ['B', 'W']:
+                if not self.two_player_mode and player == 'W' and self.current_player == 'B':
+                    continue  # Skip displaying utility for 'W' before 'B' plays
+
+                # Display utility before each round
+                player_utility = self.game.utility(player)
+                print(f"\nUtility for {player} before round: {player_utility}")
+
+                # Display current player and available moves
+                print(f"\nCurrent player: {self.current_player}")
+                available_moves = self.game.generate_moves(self.current_player)
+                self.game.display_board(available_moves)
+
+                # Check if there are available moves
+                if available_moves:
+                    no_valid_moves[player] = False
+
+                    # Get user move or let the computer make a move
+                    # handles the move for the current player.
+                    if self.two_player_mode or self.current_player == 'B':
+                        row, col = self.game.get_user_move()
+                        # checks If the move is valid, it switches to the next player
+                        if self.game.apply_move(row, col, self.current_player):
+                            self.switch_players()
+                        else:
+                            print("Invalid move. Try again.")
+                    # Computer's turn
+                    else:
+                        # determines the depth of the algorithm for the minimax algorithm based on the selected difficulty level.
+                        depth = {'EASY': 1, 'MEDIUM': 3, 'HARD': 5}[self.difficulty.upper()]
+                        best_move = self.game.alpha_beta_pruning(self.current_player, depth)
+                        # Check if there is a valid move for the AI
+                        if best_move is not None:
+                            self.game.apply_move(best_move[0], best_move[1], self.current_player)
+                            self.switch_players()
+                        else:
+                            print(f"No valid moves for {self.current_player}.")
+                            self.switch_players()
+                else:
+                    print(f"No valid moves for {self.current_player}.")
+                    no_valid_moves[player] = True
+                    self.switch_players()
+
+                # Display count of black and white disks after each round
+                black_count, white_count = self.game.count_pieces()
+                print(f"Black disks: {black_count}, White disks: {white_count}")
+
+                # Display utility after each round
+                player_utility = self.game.utility(player)
+                print(f"Utility for {player} after round: {player_utility}")
+
+                # Check for game over condition
+                # no available moves for both players
+                if all(no_valid_moves.values()):
+                    self.game.display_board()
+                    self.declare_winner()
+                    return
+                # if game is over then print the board and declare the winner
+                if self.game.is_game_over():
+                    self.game.display_board()
+                    self.declare_winner()
+                    return
+
+    def declare_winner(self):
+        black_count, white_count = self.game.count_pieces()
+        if black_count > white_count:
+            print("Black wins!")
+        elif white_count > black_count:
+            print("White wins!")
+        else:
+            print("It's a tie!")
+
+
+if _name_ == "_main_":
+    while True:
+        game_mode = input("Choose game mode (1: vs AI, 2: Two players): ").strip()
+        if game_mode == '1':
+            difficulty = input("Choose difficulty level (Easy, Medium, Hard): ").strip().upper()
+            if difficulty in ['EASY', 'MEDIUM', 'HARD']:
+                controller = GameController(difficulty)
+                controller.play()
+                break
+            else:
+                print("Invalid input. Please enter Easy, Medium, or Hard.")
+        elif game_mode == '2':
+            controller = GameController(None, two_player_mode=True)
+            controller.play()
+            break
+        else:
+            print("Invalid input. Please enter 1 or 2.")
