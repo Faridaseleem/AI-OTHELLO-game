@@ -1,0 +1,223 @@
+import tkinter as tk
+from tkinter import messagebox
+from OthelloGame_superfinal import GameController
+
+class OthelloGUI:
+    def _init_(self, master):
+        self.master = master
+        self.master.title("Othello")
+        self.difficulty = tk.StringVar()
+        self.difficulty.set("MEDIUM")  # Default difficulty
+        self.two_player_mode = tk.BooleanVar(value=False)  # Variable to track if two-player mode is selected
+        self.game_controller = None
+        self.create_widgets()
+        self.first_move = True
+
+    def create_widgets(self):
+        # Difficulty Selection
+        difficulty_frame = tk.Frame(self.master)   # Create a frame to hold difficulty-related widgets
+        difficulty_frame.pack(pady=10)             # Pack the frame into the master window with padding
+        difficulty_label = tk.Label(difficulty_frame, text="Select Difficulty:") # Create a label for the difficulty menu
+        difficulty_label.pack(side=tk.LEFT)        # Pack the label to the left side of the frame
+        difficulty_menu = tk.OptionMenu(difficulty_frame, self.difficulty, "EASY", "MEDIUM", "HARD")   # Create an option menu for selecting difficulty
+        difficulty_menu.pack(side=tk.LEFT)        # Pack the option menu to the left side of the frame
+
+        # Two-player Mode Checkbox
+        two_player_checkbox = tk.Checkbutton(self.master, text="Two-player mode", variable=self.two_player_mode)
+        two_player_checkbox.pack()
+
+        # Start Button
+        start_button = tk.Button(self.master, text="Start Game", command=self.start_game)
+        start_button.pack()
+
+        # Game Board
+        self.canvas = tk.Canvas(self.master, width=400, height=400, bg="green")
+        self.canvas.pack()
+
+        # Labels
+        self.status_label = tk.Label(self.master, text="Current player: Black")
+        self.status_label.pack()
+
+        self.black_count_label = tk.Label(self.master, text="Black: 2")
+        self.black_count_label.pack()
+
+        self.white_count_label = tk.Label(self.master, text="White: 2")
+        self.white_count_label.pack()
+
+        # Restart Button
+        self.restart_button = tk.Button(self.master, text="Restart", command=self.restart_game)
+        self.restart_button.pack()
+
+        # Bind Canvas Click
+        self.canvas.bind("<Button-1>", self.on_canvas_click)
+
+    def start_game(self):
+        # Check if two-player mode is selected
+        if self.two_player_mode.get():
+            # Initialize GameController with two-player mode enabled
+            self.game_controller = GameController(None, two_player_mode=True)
+        else:
+            # Initialize GameController with the selected difficulty level
+            self.game_controller = GameController(self.difficulty.get())
+        self.draw_board()    # Draw the game board on the canvas
+
+    def draw_board(self):
+        # Check if a game controller is initialized
+        if self.game_controller:
+            # Get the counts of black and white pieces on the game board
+            black_count, white_count = self.game_controller.game.count_pieces()
+            total_count = black_count + white_count
+
+            # Iterate over each cell in the game board
+            for i in range(8):
+                for j in range(8):
+                    # Calculate the coordinates of the current cell on the canvas
+                    x0, y0 = j * 50, i * 50
+                    x1, y1 = x0 + 50, y0 + 50
+                    fill_color = "green"    # background color
+
+                    # Check if there are fewer than 5 pieces on the board
+                    if total_count < 5:
+                        # Highlight valid moves for the current player
+                        if self.game_controller.game.is_valid_move(i, j, self.game_controller.current_player):
+                            fill_color = "blue"    # Set fill color to blue for valid moves
+                    else:
+                        # Highlight valid moves for the opponent player
+                        if self.game_controller.game.is_valid_move(i, j, self.game_controller.opponent_player):
+                            fill_color = "blue"
+
+                    # Draw the rectangle representing the cell on the canvas with the determined fill color
+                    self.canvas.create_rectangle(x0, y0, x1, y1, fill=fill_color, outline="black")
+
+                    # Draw the disks (pieces) on the board based on their positions and colors
+                    if self.game_controller.game.board[i][j] == 'B':
+                        # Draw a black disk
+                        self.canvas.create_oval(x0 + 5, y0 + 5, x1 - 5, y1 - 5, fill="black", outline="black", tags="disk")
+                    elif self.game_controller.game.board[i][j] == 'W':
+                        # Draw a white disk
+                        self.canvas.create_oval(x0 + 5, y0 + 5, x1 - 5, y1 - 5, fill="white", outline="black", tags="disk")
+
+    def update_counts(self):
+        # Get the counts of black and white pieces on the game board
+        black_count, white_count = self.game_controller.game.count_pieces()
+        # Update the text of the black count label to display the current count of black pieces
+        self.black_count_label.config(text=f"Black: {black_count}")
+        # Update the text of the white count label to display the current count of white pieces
+        self.white_count_label.config(text=f"White: {white_count}")
+
+    def restart_game(self):  #similar to the start
+        # Check if a game controller exists
+        if self.game_controller:
+            # Check if two-player mode is selected
+            if self.two_player_mode.get():
+                # Initialize a new game controller with two-player mode enabled
+                self.game_controller = GameController(None, two_player_mode=True)
+            else:
+                # Initialize a new game controller with the selected difficulty level
+                self.game_controller = GameController(self.difficulty.get())
+            # Redraw the game board on the canvas
+            self.draw_board()
+
+    def on_canvas_click(self, event):
+        # Check if a game controller exists
+        if self.game_controller:
+            # Convert the coordinates of the mouse click to a move on the game board
+            move = self.convert_point_coord_to_move(event.x, event.y)
+            # Check if the move is a valid move for the current player
+            if self.game_controller.game.is_valid_move(move[0], move[1], self.game_controller.current_player):
+                # Apply the move to the game board
+                self.game_controller.game.apply_move(move[0], move[1], self.game_controller.current_player)
+                # Redraw the game board on the canvas
+                self.draw_board()
+                # Update the counts of black and white pieces
+                self.update_counts()
+                # Switch to the next player's turn
+                self.game_controller.switch_players()
+                # Update the status label to indicate the current player
+                self.update_status_label()
+                # Set the flag indicating the first move to False
+                self.first_move = False
+                # If AI mode is enabled and it's the AI's turn, schedule the AI move after a delay
+                if not self.two_player_mode.get() and self.game_controller.current_player == 'W':
+                    self.master.after(1000, self.ai_move)
+            else:
+                # Check if the current player can make a valid move
+                if not self.game_controller.game.generate_moves(self.game_controller.current_player):
+                    self.skip_turn()
+
+    def skip_turn(self):
+        # Display a message indicating that there are no valid moves for the current player
+        messagebox.showinfo("No Valid Moves",
+                            f"No valid moves for {self.game_controller.current_player}. Skipping turn.")
+        # Check if the opponent can make a move
+        opponent_player = self.game_controller.opponent_player
+        if not self.game_controller.game.generate_moves(opponent_player):
+            self.end_game()    # If the opponent cannot make a move, end the game
+        else:
+            # Switch to the opponent's turn
+            self.game_controller.switch_players()
+            # Update the status label to indicate the next player's turn
+            self.update_status_label()
+            # Update the game board to show available moves for the next player
+            self.draw_board()
+            # If AI mode is enabled and it's the AI's turn, schedule the AI move after a delay
+            if not self.two_player_mode.get() and self.game_controller.current_player == 'W':
+                self.master.after(1000, self.ai_move)
+            else:
+                # If it's a two-player mode or the current player is human, display a message to proceed
+                messagebox.showinfo("Next Player",
+                                    f"Next player: {opponent_player}\nClick anywhere on the board to proceed.")
+
+    def ai_move(self):
+        # Check if the AI player has valid moves
+        if not self.game_controller.game.generate_moves(self.game_controller.current_player):
+            # If the AI has no valid moves, skip its turn
+            self.skip_turn()
+        else:
+            # Determine the depth based on the selected difficulty level
+            depth = {'EASY': 1, 'MEDIUM': 3, 'HARD': 5}[self.difficulty.get().upper()]
+            # Use alpha-beta pruning to find the best move for the AI player
+            best_move = self.game_controller.game.alpha_beta_pruning(self.game_controller.current_player, depth)
+
+            if best_move is not None:
+                # Apply the best move found by the AI
+                self.game_controller.game.apply_move(best_move[0], best_move[1], self.game_controller.current_player)
+                # Redraw the game board and update counts
+                self.draw_board()
+                # Update the counts of black and white pieces
+                self.update_counts()
+                # Switch to the next player's turn
+                self.game_controller.switch_players()
+                # Check if the next player has valid moves; if not, skip their turn
+                self.update_status_label()
+                if not self.game_controller.game.generate_moves(self.game_controller.current_player):
+                    self.skip_turn()
+
+    def convert_point_coord_to_move(self, x, y):
+        # Convert canvas coordinates (x, y) to row and column indices
+        # Each cell on the canvas is 50x50 pixels, so divide by 50 to get the indices
+        row = y // 50
+        col = x // 50
+        return row, col
+
+    def update_status_label(self):
+        # Update the status label to indicate the current player's turn
+        if self.game_controller.current_player == 'B':
+            # Update the status label to indicate the current player's turn
+            self.status_label.config(text="Current player: Black")
+        else:
+            # If it's White's turn, update label accordingly
+            self.status_label.config(text="Current player: White")
+
+    def end_game(self):
+        # Determine the winner based on the counts of black and white pieces
+        black_count, white_count = self.game_controller.game.count_pieces()
+        winner = "Black" if black_count > white_count else "White" if white_count > black_count else "Tie"
+        # Display a message box indicating the game result
+        messagebox.showinfo("Game Over", f"{winner} wins!")
+
+
+# Create the GUI window
+root = tk.Tk()              # Initialize the Tkinter root window
+app = OthelloGUI(root)      # Create an instance of the OthelloGUI class, passing the root window as a parameter
+root.mainloop()             # Start the Tkinter event loop to display the GUI and handle user interactions
