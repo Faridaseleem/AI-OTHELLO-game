@@ -1,0 +1,2 @@
+# AI-OTHELLO-game
+kcbjksk
